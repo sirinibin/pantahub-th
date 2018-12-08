@@ -19,49 +19,88 @@ var GCAPIUrl = "http://localhost:2000"
 var BaseAPIUrl = "http://localhost:12365"
 var UTOKEN = ""
 var DeviceCount = 3
+var Devices []models.Device
+var Trails []models.Trail
 
-func TestMain(t *testing.T) {
+func TestMain2(t *testing.T) {
+	log.Print("Inside Test Main2")
 	// Create N-no.of devices(based on the value of "var DeviceCount"
-	devices := setUp(t)
+	setUp2(t)
 	// PUT /markgarbage/devices/unclaimed : which marks all unclaimed devices as garbage
 	MarkAllUnClaimedDevicesAsGrabage(t, DeviceCount)
-	// PUT /markgarbage/devices/unclaimed : to make sure that there is no devices left to mark
+	// 2nd call:PUT /markgarbage/devices/unclaimed : to make sure that there is no devices left to mark
 	MarkAllUnClaimedDevicesAsGrabage(t, 0)
 	// Delete all created devices
-	tearDown(t, devices)
+	tearDown2(t)
 
 }
-func setUp(t *testing.T) []models.Device {
+
+func setUp2(t *testing.T) bool {
 	db.Connect()
-	response := map[string]interface{}{}
 	//1.Login with user/user & Obtain Access token
-	response = login(t)
-	UTOKEN = response["token"].(string)
+	login(t)
+	//2.Create all devices with UTOKEN, API call: POST /devices
+	CreateAllDevices(t)
+	//3.Update device timecreated field to less than PANTAHUB_GC_UNCLAIMED_EXPIRY
+	UpdateAllDevicesTimeCreated(t)
 
-	var devices []models.Device
-	for i := 0; i < DeviceCount; i++ {
-
-		//2.Create a device with UTOKEN, API call: POST /devices
-		device := createDevice(t)
-		//3.Update device timecreated field to less than 1 min of PANTAHUB_GC_UNCLAIMED_EXPIRY
-		device = UpdateDeviceTimeCreated(t, device)
-
-		devices = append(devices, device)
-		log.Print("Created device:" + device.ID.Hex())
+	return true
+}
+func tearDown2(t *testing.T) bool {
+	//Delete all devices
+	if !DeleteAllDevices(t) {
+		return false
 	}
 
-	return devices
+	return true
+
 }
-func tearDown(t *testing.T, devices []models.Device) {
-	//Delete all devices
-	for _, device := range devices {
+
+func CreateAllDevices(t *testing.T) bool {
+	for i := 0; i < DeviceCount; i++ {
+		device := createDevice(t)
+		Devices = append(Devices, device)
+		log.Print("Created device:" + device.ID.Hex())
+	}
+	return true
+}
+
+// createDevice : Register a Device (As User)
+func createDevice(t *testing.T) models.Device {
+	response := map[string]interface{}{}
+	APIEndPoint := BaseAPIUrl + "/devices/"
+
+	res, err := resty.R().SetAuthToken(UTOKEN).SetBody(map[string]string{
+		"secret": "123",
+	}).Post(APIEndPoint)
+
+	if err != nil {
+		t.Errorf("internal error calling test server " + err.Error())
+		t.Fail()
+	}
+	device := models.Device{}
+	err = json.Unmarshal(res.Body(), &device)
+	if err != nil {
+		t.Errorf(err.Error())
+		t.Fail()
+	}
+	if res.StatusCode() != 200 {
+		log.Print(response)
+		t.Fail()
+	}
+	return device
+}
+func DeleteAllDevices(t *testing.T) bool {
+	for _, device := range Devices {
 		if !DeleteDevice(t, device) {
 			t.Errorf("Something went wrong while deleting device:" + device.ID.Hex())
 			t.Fail()
+			return false
 		}
 		log.Print("Deleted device:" + device.ID.Hex())
 	}
-
+	Devices = []models.Device{}
+	return true
 }
 func DeleteDevice(t *testing.T, device models.Device) bool {
 	db := db.Session
@@ -69,14 +108,25 @@ func DeleteDevice(t *testing.T, device models.Device) bool {
 	//log.Print("Device id:" + device.ID)
 	err := c.Remove(bson.M{"_id": device.ID})
 	if err != nil {
-		t.Errorf("internal error calling test server: " + err.Error())
+		t.Errorf("Error on Removing: " + err.Error())
 		t.Fail()
 		return false
 	}
+
 	return true
 }
 
-func UpdateDeviceTimeCreated(t *testing.T, device models.Device) models.Device {
+func UpdateAllDevicesTimeCreated(t *testing.T) bool {
+	for _, device := range Devices {
+		if !UpdateDeviceTimeCreated(t, &device) {
+			t.Errorf("Something went wrong while updating device timestamp:" + device.ID.Hex())
+			t.Fail()
+			return false
+		}
+	}
+	return true
+}
+func UpdateDeviceTimeCreated(t *testing.T, device *models.Device) bool {
 
 	TimeLeftForGarbaging := utils.GetEnv("PANTAHUB_GC_UNCLAIMED_EXPIRY")
 	duration := ParseDuration(TimeLeftForGarbaging)
@@ -96,8 +146,9 @@ func UpdateDeviceTimeCreated(t *testing.T, device models.Device) models.Device {
 	if err != nil {
 		t.Errorf("internal error calling test server: " + err.Error())
 		t.Fail()
+		return false
 	}
-	return device
+	return true
 }
 func MarkAllUnClaimedDevicesAsGrabage(t *testing.T, deviceCount int) bool {
 	response := map[string]interface{}{}
@@ -125,10 +176,12 @@ func MarkAllUnClaimedDevicesAsGrabage(t *testing.T, deviceCount int) bool {
 		return false
 	}
 
+	log.Print(strconv.Itoa(devicesMarked) + " Devices Marked as Garbage")
+
 	return true
 
 }
-func login(t *testing.T) map[string]interface{} {
+func login(t *testing.T) bool {
 	response := map[string]interface{}{}
 	APIEndPoint := BaseAPIUrl + "/auth/login"
 
@@ -140,42 +193,21 @@ func login(t *testing.T) map[string]interface{} {
 	if err != nil {
 		t.Errorf("internal error calling test server " + err.Error())
 		t.Fail()
+		return false
 	}
 	if res.StatusCode() != 200 {
 		t.Errorf("login without username/password must yield 401")
+		t.Fail()
+		return false
 	}
 	err = json.Unmarshal(res.Body(), &response)
 	if err != nil {
 		t.Errorf(err.Error())
 		t.Fail()
+		return false
 	}
-	return response
-}
-
-// createDevice : Register a Device (As User)
-func createDevice(t *testing.T) models.Device {
-	response := map[string]interface{}{}
-	APIEndPoint := BaseAPIUrl + "/devices/"
-
-	res, err := resty.R().SetAuthToken(UTOKEN).SetBody(map[string]string{
-		"secret": "123",
-	}).Post(APIEndPoint)
-
-	if err != nil {
-		t.Errorf("internal error calling test server " + err.Error())
-		t.Fail()
-	}
-	device := models.Device{}
-	err = json.Unmarshal(res.Body(), &device)
-	if err != nil {
-		t.Errorf(err.Error())
-		t.Fail()
-	}
-	if res.StatusCode() != 200 {
-		log.Print(response)
-		t.Fail()
-	}
-	return device
+	UTOKEN = response["token"].(string)
+	return true
 }
 
 // ParseDuration : Parse Duration referece : https://stackoverflow.com/questions/28125963/golang-parse-time-duration
@@ -207,18 +239,3 @@ func ParseInt64(value string) int64 {
 	}
 	return int64(parsed)
 }
-
-/*
-func DeleteAllDevices(t *testing.T, device models.Device) (bool, int) {
-	db := db.Session
-	c := db.C("pantahub_devices")
-	//log.Print("Device id:" + device.ID)
-	info, err := c.RemoveAll(bson.M{})
-	if err != nil {
-		t.Errorf("Error Deleting devices " + err.Error())
-		t.Fail()
-		return false, info.Removed
-	}
-	return true, info.Removed
-}
-*/
