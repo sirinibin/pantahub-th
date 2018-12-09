@@ -27,7 +27,7 @@ func setUp3(t *testing.T) bool {
 	//1.Login with user/user & Obtain Access token
 	login(t)
 	//2.Create all devices with UTOKEN, API call: POST /devices
-	CreateAllDevices(t)
+	CreateDevices(t)
 
 	return true
 }

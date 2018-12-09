@@ -37,7 +37,7 @@ func TestMain4(t *testing.T) {
 	}
 
 	//Create trails for all devices
-	CreateAllTrails(t)
+	CreateTrails(t)
 
 	log.Print(" Case 2:Processing garbage devices with trails")
 	// Process device Garbages : PUT processgarbages/devices
@@ -68,7 +68,7 @@ func setUp4(t *testing.T) bool {
 	login(t)
 
 	//2.Create all devices with UTOKEN, API call: POST /devices
-	CreateAllDevices(t)
+	CreateDevices(t)
 
 	return true
 }

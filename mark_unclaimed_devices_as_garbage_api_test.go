@@ -61,7 +61,7 @@ func setUp2(t *testing.T) bool {
 	//1.Login with user/user & Obtain Access token
 	login(t)
 	//2.Create all devices with UTOKEN, API call: POST /devices
-	CreateAllDevices(t)
+	CreateDevices(t)
 	//3.Update device timecreated field to less than PANTAHUB_GC_UNCLAIMED_EXPIRY
 	UpdateAllDevicesTimeCreated(t)
 
@@ -77,7 +77,7 @@ func tearDown2(t *testing.T) bool {
 
 }
 
-func CreateAllDevices(t *testing.T) bool {
+func CreateDevices(t *testing.T) bool {
 	for i := 0; i < DeviceCount; i++ {
 		device := createDevice(t)
 		Devices = append(Devices, device)

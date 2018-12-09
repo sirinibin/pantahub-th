@@ -53,9 +53,9 @@ func setUp1(t *testing.T) bool {
 	//1.Login with user/user & Obtain Access token
 	login(t)
 	//2.Create all devices with UTOKEN, API call: POST /devices
-	CreateAllDevices(t)
+	CreateDevices(t)
 	//2.Create all trails with DTOKENS, API call: POST /trails/
-	CreateAllTrails(t)
+	CreateTrails(t)
 	//3.Delete All devices so all trails becomes parentless
 	DeleteAllDevices(t)
 
@@ -93,7 +93,7 @@ func MarkTrailsAsGarbage(t *testing.T) (int, int) {
 
 }
 
-func CreateAllTrails(t *testing.T) bool {
+func CreateTrails(t *testing.T) bool {
 
 	for _, device := range Devices {
 		//log.Print("Creating trail:" + device.ID.Hex())
