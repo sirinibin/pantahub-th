@@ -18,7 +18,7 @@ import (
 var GCAPIUrl = "http://localhost:2000"
 var BaseAPIUrl = "http://localhost:12365"
 var UTOKEN = ""
-var DeviceCount = 3
+var DeviceCount = 1
 var Devices []models.Device
 var Trails []models.Trail
 
