@@ -9,18 +9,21 @@ import (
 	"gitlab.com/pantacor/pantahub-gc/db"
 )
 
-// TestMain2 : Mark Trails as Garbages that lost their parent devices
+// TestMain3 : Mark Devices as Garbages
 func TestMain3(t *testing.T) {
-	log.Print("Inside Test Main3")
-	// Create N-no.of devices(based on the value of "var DeviceCount"
 	setUp3(t)
+	log.Print("Test:Mark Devices as Garbages")
 	// PUT markgarbage/device/<DEVICE_ID>
-	MarkAllDevicesAsGarbage(t)
+	log.Print(" Case 1:Mark all devices as Garbages")
+	if MarkAllDevicesAsGarbage(t) {
+		log.Print(" Case 1:Passed\n\n")
+	}
 	tearDown3(t)
 }
 
 func setUp3(t *testing.T) bool {
 	db.Connect()
+	ClearOldData(t)
 	//1.Login with user/user & Obtain Access token
 	login(t)
 	//2.Create all devices with UTOKEN, API call: POST /devices
@@ -64,15 +67,10 @@ func MarkDeviceAsGarbage(t *testing.T, deviceID string) bool {
 		t.Fail()
 	}
 	status := int(response["status"].(float64))
-
-	//log.Print(response["device"])
 	id := response["device"].(map[string]interface{})["id"]
-	//log.Print("Devce ID:")
-	//log.Print(id)
-
 	// check if status==1 and device id=deviceID
 	if status != 1 || id != deviceID {
-		t.Errorf("Error on marking device as garbage")
+		t.Errorf("Error:Expected device id:" + deviceID + ",but got:" + id.(string))
 		t.Fail()
 		return false
 	}

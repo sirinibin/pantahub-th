@@ -18,25 +18,46 @@ import (
 var GCAPIUrl = "http://localhost:2000"
 var BaseAPIUrl = "http://localhost:12365"
 var UTOKEN = ""
-var DeviceCount = 1
+var DeviceCount = 10
 var Devices []models.Device
 var Trails []models.Trail
 
 func TestMain2(t *testing.T) {
-	log.Print("Inside Test Main2")
+	log.Print("Test:Mark Unclaimed devices as garbages")
 	// Create N-no.of devices(based on the value of "var DeviceCount"
 	setUp2(t)
 	// PUT /markgarbage/devices/unclaimed : which marks all unclaimed devices as garbage
-	MarkAllUnClaimedDevicesAsGrabage(t, DeviceCount)
+	log.Print(" Case 1:Mark all unclaimed devices as garbage")
+
+	status, devicesMarked := MarkAllUnClaimedDevicesAsGrabage(t)
+	//5.check if device_marked=len(Devices)
+	if status == 1 && devicesMarked == len(Devices) {
+		log.Print(" Case 1:Passed")
+	} else {
+		t.Errorf(" Case 1,Error:Devices should be marked is:" + strconv.Itoa(len(Devices)) + ", But Devices actually marked is:" + strconv.Itoa(devicesMarked))
+		t.Fail()
+	}
+	//log.Print(strconv.Itoa(devicesMarked) + " Devices Marked as Garbage")
+
 	// 2nd call:PUT /markgarbage/devices/unclaimed : to make sure that there is no devices left to mark
-	MarkAllUnClaimedDevicesAsGrabage(t, 0)
+	log.Print(" Case 2:Mark all unclaimed devices as garbage when there is no unclaimed devices leftt to mark")
+	status, devicesMarked = MarkAllUnClaimedDevicesAsGrabage(t)
+	//5.check if device_marked=len(Devices)
+	if status == 1 && devicesMarked == 0 {
+		log.Print(" Case 2:Passed\n\n")
+	} else {
+		t.Errorf(" Case 2,Error:Devices should be marked is:0, But Devices actually marked is:" + strconv.Itoa(devicesMarked))
+		t.Fail()
+	}
+	//log.Print(strconv.Itoa(devicesMarked) + " Devices Marked as Garbage")
 	// Delete all created devices
 	tearDown2(t)
 
 }
 
 func setUp2(t *testing.T) bool {
-	db.Connect()
+	//db.Connect()
+	ClearOldData(t)
 	//1.Login with user/user & Obtain Access token
 	login(t)
 	//2.Create all devices with UTOKEN, API call: POST /devices
@@ -60,7 +81,7 @@ func CreateAllDevices(t *testing.T) bool {
 	for i := 0; i < DeviceCount; i++ {
 		device := createDevice(t)
 		Devices = append(Devices, device)
-		log.Print("Created device:" + device.ID.Hex())
+		//log.Print("Created device:" + device.ID.Hex())
 	}
 	return true
 }
@@ -91,16 +112,28 @@ func createDevice(t *testing.T) models.Device {
 	return device
 }
 func DeleteAllDevices(t *testing.T) bool {
-	for _, device := range Devices {
-		if !DeleteDevice(t, device) {
-			t.Errorf("Something went wrong while deleting device:" + device.ID.Hex())
-			t.Fail()
-			return false
-		}
-		log.Print("Deleted device:" + device.ID.Hex())
+
+	db := db.Session
+	c := db.C("pantahub_devices")
+	_, err := c.RemoveAll(bson.M{})
+	if err != nil {
+		t.Errorf("Error on Removing: " + err.Error())
+		t.Fail()
+		return false
 	}
 	Devices = []models.Device{}
 	return true
+	/*
+		for _, device := range Devices {
+			if !DeleteDevice(t, device) {
+				t.Errorf("Something went wrong while deleting device:" + device.ID.Hex())
+				t.Fail()
+				return false
+			}
+			log.Print("Deleted device:" + device.ID.Hex())
+		}
+	*/
+
 }
 func DeleteDevice(t *testing.T, device models.Device) bool {
 	db := db.Session
@@ -150,7 +183,7 @@ func UpdateDeviceTimeCreated(t *testing.T, device *models.Device) bool {
 	}
 	return true
 }
-func MarkAllUnClaimedDevicesAsGrabage(t *testing.T, deviceCount int) bool {
+func MarkAllUnClaimedDevicesAsGrabage(t *testing.T) (int, int) {
 	response := map[string]interface{}{}
 	APIEndPoint := GCAPIUrl + "/markgarbage/devices/unclaimed"
 	res, err := resty.R().Put(APIEndPoint)
@@ -163,22 +196,10 @@ func MarkAllUnClaimedDevicesAsGrabage(t *testing.T, deviceCount int) bool {
 		log.Print(response)
 		t.Fail()
 	}
+	status := int(response["status"].(float64))
 	devicesMarked := int(response["devices_marked"].(float64))
-	//to handle some already existing unclaimed devices count
-	if devicesMarked > deviceCount {
-		deviceCount += devicesMarked
-	}
 
-	//5.check if device_marked=deviceCount
-	if devicesMarked != deviceCount {
-		t.Errorf("Error:Devices should be marked is:" + strconv.Itoa(deviceCount) + ", But Devices actually marked is:" + strconv.Itoa(devicesMarked))
-		t.Fail()
-		return false
-	}
-
-	log.Print(strconv.Itoa(devicesMarked) + " Devices Marked as Garbage")
-
-	return true
+	return status, devicesMarked
 
 }
 func login(t *testing.T) bool {
